@@ -195,7 +195,7 @@ func (s *Snapshot) inturn(number uint64, validator common.Address) bool {
 	return validators[offset] == validator
 }
 
-func (s *Snapshot) indexOfSigner(validator common.Address) int {
+func (s *Snapshot) indexOfValidator(validator common.Address) int {
 	validators := s.validators()
 	for i, v := range validators {
 		if v == validator {
@@ -203,4 +203,10 @@ func (s *Snapshot) indexOfSigner(validator common.Address) int {
 		}
 	}
 	return -1
+}
+
+func (s *Snapshot) validatorInTurn() common.Address {
+	validators := s.validators()
+	index := (s.Number + 1) % uint64(len(validators))
+	return validators[index]
 }

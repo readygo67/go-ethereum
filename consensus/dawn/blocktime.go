@@ -22,11 +22,11 @@ func (h *Dawn) verifyBlockTime(snap *Snapshot, header, parent *types.Header) err
 
 // @keep, 计算validator 出块的延迟，避免出现同时出块撞车
 // 如果是intrurn 不需要delay，否则随机delay一个时间，并且各个validator delay的时间不一致。
-func backOffTime(snap *Snapshot, signer common.Address) uint64 {
-	if snap.inturn(snap.Number+1, signer) {
+func backOffTime(snap *Snapshot, validator common.Address) uint64 {
+	if snap.inturn(snap.Number+1, validator) {
 		return 0
 	} else {
-		idx := snap.indexOfSigner(signer)
+		idx := snap.indexOfValidator(validator)
 		if idx < 0 {
 			// The backOffTime does not matter when a validator is not authorized.
 			return 0

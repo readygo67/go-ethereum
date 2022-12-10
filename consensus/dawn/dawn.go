@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 	"math/big"
@@ -468,21 +467,8 @@ func (h *Dawn) Prepare(chain consensus.ChainHeaderReader, header *types.Header) 
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (h *Dawn) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs []*types.Transaction, uncles []*types.Header, receipts *[]*types.Receipt, systemTxs []*types.Transaction) error {
-	// Initialize all system contracts at block 1.
-	if header.Number.Cmp(common.Big1) == 0 {
-		if err := h.initializeSystemContracts(chain, header, state); err != nil {
-			log.Error("Initialize system contracts failed", "err", err)
-			return err
-		}
-	}
-
-	if header.Difficulty.Cmp(diffInTurn) != 0 {
-		if err := h.trySlashValidator(chain, header, state); err != nil {
-			return err
-		}
-	}
+func (h *Dawn) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs []*types.Transaction) error {
 
 	// avoid nil pointer
 	if txs == nil {
@@ -494,19 +480,49 @@ func (h *Dawn) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 		receipts = &rs
 	}
 
-	// execute block reward tx.
-	if len(*txs) > 0 {
-		if err := c.trySendBlockReward(chain, header, state); err != nil {
-			return err
-		}
-	}
-
 	number := header.Number.Uint64()
 	snap, err := h.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
 
+	// Initialize all system contracts at block 1.
+	if header.Number.Cmp(common.Big1) == 0 {
+		if err := h.initializeSystemContracts(chain, header, state); err != nil {
+			log.Error("Initialize system contracts failed", "err", err)
+			return err
+		}
+	}
+
+	if header.Difficulty.Cmp(diffInTurn) != 0 {
+		validatorInTurn := snap.validatorInTurn()
+		signedRecently := false
+		for _, recent := range snap.Recents {
+			if recent == validatorInTurn {
+				signedRecently = true
+				break
+			}
+		}
+		if !signedRecently {
+			log.Trace("slash validator", "block hash", header.Hash(), "validator", validatorInTurn)
+			err = h.trySlashValidator(chain, header, state, validatorInTurn)
+			if err != nil {
+				// it is possible that slash validator failed because of the slash channel is disabled.
+				log.Error("slash validator failed", "block hash", header.Hash(), "address", validatorInTurn)
+			}
+		}
+	}
+
+	validator := header.Coinbase
+	err = h.distributeReward(validator, state, header, cx, txs, receipts, systemTxs, usedGas, false)
+	if err != nil {
+		return err
+	}
+	if len(*systemTxs) > 0 {
+		return errors.New("the length of systemTxs do not match")
+	}
+
+	return nil
 }
 
 //// @keep, ok
@@ -515,9 +531,10 @@ func (h *Dawn) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 //}
 
 func (h *Dawn) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	h.Finalize(chain, header, state, txs, uncles)
-	return types.NewBlock(header, txs, uncles, receipts, trie.NewStackTrie(nil)), nil
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
+	//h.Finalize(chain, header, state, txs, uncles)
+	//return types.NewBlock(header, txs, uncles, receipts, trie.NewStackTrie(nil)), nil
+	return nil, nil, nil
 }
 
 func (h *Dawn) SealHash(header *types.Header) common.Hash {
@@ -733,37 +750,25 @@ func (h *Dawn) Seal(chain consensus.ChainHeaderReader, block *types.Block, resul
 	return nil
 }
 
-// @keep, 此函数有些问题，如果epoch-1的块，需要最新的validator list 才能计算难度
+// Authorize injects a private key into the consensus engine to mint new blocks
+// with.
+func (h *Dawn) Authorize(validator common.Address, signFn SignerFn) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	h.validator = validator
+	h.signFn = signFn
+}
+
+// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
+// that a new block should have based on the previous blocks in the chain and the
+// current signer.
 func (h *Dawn) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	snap, err := h.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
 	if err != nil {
 		return nil
 	}
-	h.lock.RLock()
-	validator := h.validator
-	h.lock.RUnlock()
-
-	////TODO(keep), 如果parent是上一个epoch 的最后一个块,
-	//newSnap := snap.copy()
-	//epochNumber := parent.Number.Uint64() / h.config.Epoch
-	//if parent.Number.Uint64()%h.config.Epoch == h.config.Epoch-1 {
-	//	epochNumber += 1
-	//}
-	//
-	//validators, err := h.GetValidatorsInEpoch(chain, epochNumber)
-	//if err != nil {
-	//	panic("CalcDifficulty, fail to get epoch's validators")
-	//}
-	//
-	//for validator, _ := range newSnap.Validators {
-	//	delete(newSnap.Validators, validator)
-	//}
-	//
-	//for _, validator := range validators {
-	//	newSnap.Validators[validator] = struct{}{}
-	//}
-
-	return calcDifficulty(snap, validator)
+	return calcDifficulty(snap, h.validator)
 }
 
 func (h *Dawn) APIs(chain consensus.ChainHeaderReader) []rpc.API {
@@ -773,13 +778,6 @@ func (h *Dawn) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 		Service:   &API{chain: chain, engine: h},
 		Public:    true,
 	}}
-}
-
-func (h *Dawn) Authorize(validator common.Address, signFn SignerFn) {
-	h.lock.Lock()
-	h.validator = validator
-	h.signFn = signFn
-	h.lock.Unlock()
 }
 
 func calcDifficulty(snap *Snapshot, validator common.Address) *big.Int {
@@ -797,7 +795,7 @@ func SealHash(header *types.Header) (hash common.Hash) {
 	return hash
 }
 
-// CliqueRLP returns the rlp bytes which needs to be signed for the proof-of-authority
+// DawnRLP returns the rlp bytes which needs to be signed for the proof-of-authority
 // sealing. The RLP to sign consists of the entire header apart from the 65 byte signature
 // contained at the end of the extra data.
 //
