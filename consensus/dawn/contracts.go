@@ -43,7 +43,7 @@ func (d *Dawn) getCurrentValidators(blockHash common.Hash, blockNumber *big.Int)
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.Validators)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := d.ethAPI.(ctx, ethapi.TransactionArgs{
+	result, err := d.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		To:   &toAddress,
 		Data: &msgData,

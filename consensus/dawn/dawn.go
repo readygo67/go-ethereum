@@ -122,11 +122,6 @@ var (
 
 	// errInvalidValidatorLen is returned if validators length is zero or bigger than maxValidators.
 	errInvalidValidatorsNumber = errors.New("Invalid validators number")
-
-	errInvalidSign     = errors.New("tx is not sign by valid validator")
-	errMarshalError    = errors.New("marshal error")
-	errNoValidProError = errors.New("no valid proposal")
-	errApporvalError   = errors.New("approval can only use once in 3 epoch")
 )
 
 // SignerFn is a signer callback function to request a header to be signed by a
@@ -152,8 +147,6 @@ type Dawn struct {
 	validatorsABI  abi.ABI //system contract's ABI
 	slasherABI     abi.ABI
 	commissionsABI abi.ABI //
-
-	systemContracts map[common.Address]abi.ABI //system contract's ABI
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
@@ -183,7 +176,7 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database) *Dawn {
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
+func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
@@ -196,7 +189,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, er
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -400,7 +393,7 @@ func (d *Dawn) verifySeal(chain consensus.ChainHeaderReader, header *types.Heade
 	}
 
 	// Resolve the authorization key and check against signers
-	signer, err := ecrecover(header, d.signatures)
+	signer, err := ecrecover(header, d.signatures, d.chainConfig.ChainID)
 	if err != nil {
 		return err
 	}
@@ -810,7 +803,7 @@ func (d *Dawn) snapshot(chain consensus.ChainHeaderReader, number uint64, hash c
 	}
 	//将回溯中遇到的headers传给apply方法，得到一个新的snap对象
 	//@Keep，找到了之前的一个快照作为基准，然后将一路上遇到的headers 都传进去，构建一个较新的快照。
-	snap, err := snap.apply(headers)
+	snap, err := snap.apply(headers, d.chainConfig.ChainID)
 	if err != nil {
 		return nil, err
 	}

@@ -67,6 +67,7 @@ func TestSnapshotApply(t *testing.T) {
 	//block9's signer = validator[4]
 	//block10's signer = validator[0],
 	validatorLen := 10
+	chainId := big.NewInt(100)
 	dawnConfig := params.DawnConfig{
 		Period: 2,
 		Epoch:  10,
@@ -121,12 +122,12 @@ func TestSnapshotApply(t *testing.T) {
 		Nonce:       types.BlockNonce{},
 	}
 
-	header9Hash := SealHash(header9)
+	header9Hash := SealHash(header9, chainId)
 	header9Sig, err := crypto.Sign(header9Hash.Bytes(), privates[signValidatorIndex])
 	require.NoError(t, err)
 
 	copy(header9.Extra[len(header9.Extra)-extraSeal:], header9Sig)
-	snap9, err := snap8.apply([]*types.Header{header9})
+	snap9, err := snap8.apply([]*types.Header{header9}, chainId)
 	require.NoError(t, err)
 
 	require.EqualValues(t, 9, snap9.Number)
@@ -159,12 +160,12 @@ func TestSnapshotApply(t *testing.T) {
 		Nonce:       types.BlockNonce{},
 	}
 
-	header10SigHash := SealHash(header10)
+	header10SigHash := SealHash(header10, chainId)
 	header10Sig, err := crypto.Sign(header10SigHash.Bytes(), privates[signValidatorIndex])
 	require.NoError(t, err)
 	copy(header10.Extra[len(header10.Extra)-extraSeal:], header10Sig)
 
-	snap10, err := snap9.apply([]*types.Header{header10})
+	snap10, err := snap9.apply([]*types.Header{header10}, chainId)
 	require.NoError(t, err)
 	require.EqualValues(t, blockNumber, snap10.Number)
 	require.Equal(t, header10.Hash(), snap10.Hash)
@@ -194,12 +195,12 @@ func TestSnapshotApply(t *testing.T) {
 		Nonce:       types.BlockNonce{},
 	}
 
-	header11SigHash := SealHash(header11)
+	header11SigHash := SealHash(header11, chainId)
 	header11Sig, err := crypto.Sign(header11SigHash.Bytes(), privates[signValidatorIndex])
 	require.NoError(t, err)
 	copy(header11.Extra[len(header11.Extra)-extraSeal:], header11Sig)
 
-	snap11, err := snap10.apply([]*types.Header{header11})
+	snap11, err := snap10.apply([]*types.Header{header11}, chainId)
 	require.NoError(t, err)
 	require.EqualValues(t, blockNumber, snap11.Number)
 	require.Equal(t, header11.Hash(), snap11.Hash)

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
+	"math/big"
 	"sort"
 	"time"
 )
@@ -92,7 +93,7 @@ func (s *Snapshot) copy() *Snapshot {
 	return cpy
 }
 
-func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
+func (s *Snapshot) apply(headers []*types.Header, chainId *big.Int) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
 		return s, nil
@@ -123,12 +124,12 @@ func (s *Snapshot) apply(headers []*types.Header) (*Snapshot, error) {
 			delete(snap.Recents, number-limit)
 		}
 		// Resolve the authorization key and check against validators
-		validator, err := ecrecover(header, s.sigcache)
+		validator, err := ecrecover(header, s.sigcache, chainId)
 		if err != nil {
 			return nil, err
 		}
 		if _, ok := snap.Validators[validator]; !ok {
-			return nil, errUnauthorizedSigner
+			return nil, errUnauthorizedValidator
 		}
 		for _, recent := range snap.Recents {
 			if recent == validator {
