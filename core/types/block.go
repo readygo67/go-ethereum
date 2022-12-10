@@ -328,6 +328,9 @@ func (b *Block) Size() common.StorageSize {
 	return common.StorageSize(c)
 }
 
+// TODO(keep)
+func (b *Block) SetRoot(root common.Hash) { b.header.Root = root }
+
 // SanityCheck can be used to prevent that unbounded fields are
 // stuffed with junk data to add processing overhead
 func (b *Block) SanityCheck() error {

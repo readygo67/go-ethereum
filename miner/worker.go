@@ -19,6 +19,7 @@ package miner
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/dawn/systemcontracts"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -1023,6 +1024,10 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		log.Error("Failed to create sealing context", "err", err)
 		return nil, err
 	}
+
+	//TODO(keep), upgrade system contract
+	systemcontracts.UpgradeSystemContract(w.chainConfig, header.Number, env.state)
+
 	// Accumulate the uncles for the sealing work only if it's allowed.
 	if !genParams.noUncle {
 		commitUncles := func(blocks map[common.Hash]*types.Block) {
@@ -1084,7 +1089,8 @@ func (w *worker) generateWork(params *generateParams) (*types.Block, error) {
 	if !params.noTxs {
 		w.fillTransactions(nil, work)
 	}
-	return w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts)
+	block, _, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, work.unclelist(), work.receipts)
+	return block, err
 }
 
 // commitWork generates several new sealing tasks based on the parent block
@@ -1142,14 +1148,14 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		// Create a local environment copy, avoid the data race with snapshot state.
 		// https://github.com/ethereum/go-ethereum/issues/24299
 		env := env.copy()
-		block, err := w.engine.FinalizeAndAssemble(w.chain, env.header, env.state, env.txs, env.unclelist(), env.receipts)
+		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, env.header, env.state, env.txs, env.unclelist(), env.receipts)
 		if err != nil {
 			return err
 		}
 		// If we're post merge, just ignore
 		if !w.isTTDReached(block.Header()) {
 			select {
-			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
+			case w.taskCh <- &task{receipts: receipts, state: env.state, block: block, createdAt: time.Now()}:
 				w.unconfirmed.Shift(block.NumberU64() - 1)
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"uncles", len(env.uncles), "txs", env.tcount,

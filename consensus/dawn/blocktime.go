@@ -4,7 +4,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"math/rand"
+	"time"
 )
+
+func (d *Dawn) blockDelay(snap *Snapshot, header *types.Header) time.Duration {
+	return time.Until(time.Unix(int64(header.Time), 0))
+}
 
 // @keep, 本节点出块的时间。
 func (h *Dawn) blockTime(snap *Snapshot, parent *types.Header) uint64 {

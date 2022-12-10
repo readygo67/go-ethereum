@@ -36,15 +36,15 @@ import (
 // base layer statedb can be passed then it's regarded as the statedb of the
 // parent block.
 // Parameters:
-// - block: The block for which we want the state (== state at the stateRoot of the parent)
-// - reexec: The maximum number of blocks to reprocess trying to obtain the desired state
-// - base: If the caller is tracing multiple blocks, the caller can provide the parent state
-//         continuously from the callsite.
-// - checklive: if true, then the live 'blockchain' state database is used. If the caller want to
-//        perform Commit or other 'save-to-disk' changes, this should be set to false to avoid
-//        storing trash persistently
-// - preferDisk: this arg can be used by the caller to signal that even though the 'base' is provided,
-//        it would be preferable to start from a fresh state, if we have it on disk.
+//   - block: The block for which we want the state (== state at the stateRoot of the parent)
+//   - reexec: The maximum number of blocks to reprocess trying to obtain the desired state
+//   - base: If the caller is tracing multiple blocks, the caller can provide the parent state
+//     continuously from the callsite.
+//   - checklive: if true, then the live 'blockchain' state database is used. If the caller want to
+//     perform Commit or other 'save-to-disk' changes, this should be set to false to avoid
+//     storing trash persistently
+//   - preferDisk: this arg can be used by the caller to signal that even though the 'base' is provided,
+//     it would be preferable to start from a fresh state, if we have it on disk.
 func (eth *Ethereum) StateAtBlock(block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool) (statedb *state.StateDB, err error) {
 	var (
 		current  *types.Block
@@ -72,6 +72,9 @@ func (eth *Ethereum) StateAtBlock(block *types.Block, reexec uint64, base *state
 		// The optional base statedb is given, mark the start point as parent block
 		statedb, database, report = base, base.Database(), false
 		current = eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
+		if current == nil {
+			return nil, fmt.Errorf("missing parent block %v %d", block.ParentHash(), block.NumberU64()-1)
+		}
 	} else {
 		// Otherwise try to reexec blocks until we find a state or reach our limit
 		current = block
@@ -131,11 +134,15 @@ func (eth *Ethereum) StateAtBlock(block *types.Block, reexec uint64, base *state
 		if current = eth.blockchain.GetBlockByNumber(next); current == nil {
 			return nil, fmt.Errorf("block #%d not found", next)
 		}
-		_, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{})
+		statedb, _, _, _, err := eth.blockchain.Processor().Process(current, statedb, vm.Config{})
 		if err != nil {
 			return nil, fmt.Errorf("processing block %d failed: %v", current.NumberU64(), err)
 		}
+		//TODO(keep),
 		// Finalize the state so any modifications are written to the trie
+		//statedb.Finalise(eth.blockchain.Config().IsEIP158(current.Number()))
+		////statedb.AccountsIntermediateRoot()
+		////root, _, err := statedb.Commit(nil)
 		root, err := statedb.Commit(eth.blockchain.Config().IsEIP158(current.Number()))
 		if err != nil {
 			return nil, fmt.Errorf("stateAtBlock commit failed, number %d root %v: %w",
