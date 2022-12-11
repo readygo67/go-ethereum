@@ -551,6 +551,7 @@ func (d *Dawn) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 		return err
 	}
 	if len(*systemTxs) > 0 {
+		//TODO(keep), Why??
 		return errors.New("the length of systemTxs do not match")
 	}
 
@@ -692,7 +693,7 @@ func (d *Dawn) Seal(chain consensus.ChainHeaderReader, block *types.Block, resul
 	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", validator.Hex())
 
 	// time's up, sign the block
-	sig, err := signFn(accounts.Account{Address: d.validator}, "", DawnRLP(header, d.chainConfig.ChainID))
+	sig, err := signFn(accounts.Account{Address: d.validator}, accounts.MimetypeDawn, DawnRLP(header, d.chainConfig.ChainID))
 	if err != nil {
 		log.Error("signFn error", "err", err)
 		return nil
@@ -835,66 +836,6 @@ func (d *Dawn) VerifyUncles(chain consensus.ChainReader, block *types.Block) err
 func (d *Dawn) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
 	return d.verifySeal(chain, header, nil)
 }
-
-//func (h *Dawn) Finalize(
-//	chain consensus.ChainHeaderReader,
-//	header *types.Header,
-//	state *state.StateDB,
-//	txs []*types.Transaction,
-//	uncles []*types.Header,
-//) {
-//	s := types.GlobalParams{}
-//	g := rawdb.ReadParams(h.db)
-//
-//	err := json.Unmarshal(g, &s)
-//	if err != nil {
-//		log.Error("Unmarshal,", "err", err)
-//	}
-//
-//	// Accumulate block rewards and commit the final state root
-//	AccumulateRewards(chain.Config(), state, header, uncles, s.FrontierBlockReward)
-//	parent := chain.GetHeaderByHash(header.ParentHash)
-//	epochContext := &EpochContext{
-//		stateDB:   state,
-//		Context:   h.ctx,
-//		TimeStamp: header.Time,
-//	}
-//	if timeOfFirstBlock == 0 {
-//		if firstBlockHeader := chain.GetHeaderByNumber(1); firstBlockHeader != nil {
-//			timeOfFirstBlock = firstBlockHeader.Time
-//		}
-//	}
-//
-//	genesis := chain.GetHeaderByNumber(0)
-//	err = epochContext.tryElect(genesis, parent, h)
-//
-//	if err != nil {
-//		log.Error("got error when elect next epoch,", "err", err)
-//	}
-//
-//	// apply vote txs here, these tx is no reason to fail, no err no revert needed
-//	h.applyVoteTxs(txs)
-//	// apply proposal txs here,these tx is no reason to fail, no err no revert needed
-//	err = h.applyProposalTx(txs, header, chain.Config())
-//	if err != nil {
-//		log.Error("applyProposalTx error", "err", err)
-//	}
-//	// update mint count trie
-//	updateMintCnt(parent.Time, header.Time, header.Coinbase, h.ctx)
-//	if header.EngineInfo, err = h.ctx.Commit(); err != nil {
-//		log.Error("engine context commit", "err", err)
-//	}
-//	header.Root, err = state.Commit(true)
-//	if err != nil {
-//		log.Error("block commit", "err", err)
-//	}
-//	log.Debug(
-//		"current Hashes",
-//		"bn", header.Number,
-//		"engine", header.EngineInfo.String(),
-//		"root", header.Root.String())
-//}
-//
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
 // that a new block should have based on the previous blocks in the chain and the

@@ -841,6 +841,8 @@ func (w *worker) commitTransactions(env *environment, txs *types.TransactionsByP
 	gasLimit := env.header.GasLimit
 	if env.gasPool == nil {
 		env.gasPool = new(core.GasPool).AddGas(gasLimit)
+		//TODO(keep),reserve gas for system txs
+		env.gasPool.SubGas(params.SystemTxsGas * 2)
 	}
 	var coalescedLogs []*types.Log
 

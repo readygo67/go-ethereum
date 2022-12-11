@@ -323,11 +323,13 @@ func (d *Dawn) applyTransaction(
 	expectedHash := d.signer.Hash(expectedTx)
 
 	if msg.From() == d.validator && mining {
+		//@keep，如果是在FinializeAndAssemble中调用，mining = true， receivedTxs 是分拣出来的systemTxs
 		expectedTx, err = d.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, d.chainConfig.ChainID)
 		if err != nil {
 			return err
 		}
 	} else {
+		//@keep，如果是在Finalize中调用，mining= fasle, receivedTxs 是分拣出来的systemTxs
 		if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
 			return errors.New("supposed to get a actual transaction, but get none")
 		}

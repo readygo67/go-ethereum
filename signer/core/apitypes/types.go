@@ -64,7 +64,7 @@ func (vs *ValidationMessages) Info(msg string) {
 	vs.Messages = append(vs.Messages, ValidationInfo{INFO, msg})
 }
 
-/// getWarnings returns an error with all messages of type WARN of above, or nil if no warnings were present
+// / getWarnings returns an error with all messages of type WARN of above, or nil if no warnings were present
 func (v *ValidationMessages) GetWarnings() error {
 	var messages []string
 	for _, msg := range v.Messages {
@@ -185,6 +185,10 @@ var (
 	ApplicationClique = SigFormat{
 		accounts.MimetypeClique,
 		0x02,
+	}
+	ApplicationDawn = SigFormat{
+		accounts.MimetypeDawn,
+		0x03,
 	}
 	TextPlain = SigFormat{
 		accounts.MimetypeTextPlain,

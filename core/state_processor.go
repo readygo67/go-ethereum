@@ -100,7 +100,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 				return statedb, nil, nil, 0, err
 			} else if isSystemTx {
 				systemTxs = append(systemTxs, tx)
-				continue
+				continue //如果是systemTx，不执行applyTransaction的操作，待到Finalize阶段
 			}
 		}
 		msg, err := tx.AsMessage(signer, header.BaseFee)
@@ -119,6 +119,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	bloomProcessors.Close()
 
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
+	// 现将普通的操作按照正常的逻辑执行完,在Finalize 阶段去执行systemTxs
 	err := p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
 	if err != nil {
 		return statedb, receipts, allLogs, *usedGas, err
